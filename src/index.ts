@@ -19,6 +19,7 @@ import { IPayload, IExpected, IExpMessage, IFixtures, ITestData, ITestMetadata, 
 
 var metadata: ITestMetadata = {};
 var programs: ITestPrograms = {};
+var base_path: string = "";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -403,8 +404,8 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
     metadata = {};
     for (const program of testData.programs) {
       salt[program.id] = randomAsHex(20);
-      let bytes = api.createType('Bytes', Array.from(fs.readFileSync(program.path)));
-      let metaBytes = fs.readFileSync(program.path.replace('.opt.wasm', '.meta.wasm'));
+      let bytes = api.createType('Bytes', Array.from(fs.readFileSync(base_path + program.path)));
+      let metaBytes = fs.readFileSync(base_path + program.path.replace('.opt.wasm', '.meta.wasm'));
       metadata[program.id] = await getWasmMetadata(metaBytes);
     }
 
@@ -442,7 +443,7 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
 
           let res = api.program.submit(
             {
-              code: fs.readFileSync(program.path),
+              code: fs.readFileSync(base_path + program.path),
               salt: salt[program.id],
               initPayload: payload,
               gasLimit: 100000000000,
@@ -455,7 +456,7 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
           const meta = { init_input: 'Bytes' };
           let res = api.program.submit(
             {
-              code: fs.readFileSync(program.path),
+              code: fs.readFileSync(base_path + program.path),
               salt: salt[program.id],
               initPayload: [],
               gasLimit: 100000000000,
@@ -501,8 +502,17 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
 async function main() {
   const tests: ITestData[] = [];
 
+  const argv = require('minimist')(process.argv.slice(2));
+  console.dir(argv);
+
+  let yamls = argv._;
+
+  if (argv.base_path != undefined) {
+    base_path = argv.base_path;
+  }
+
   // Load yaml files
-  process.argv.slice(2).forEach((path) => {
+  yamls.forEach((path) => {
     const fileContents = fs.readFileSync(path, 'utf8').toString();
 
     try {
