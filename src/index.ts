@@ -9,6 +9,7 @@ import {
   DebugData,
 } from '@gear-js/api';
 import { xxhashAsHex, randomAsHex } from '@polkadot/util-crypto';
+import { waitReady } from '@polkadot/wasm-crypto';
 import { Option } from '@polkadot/types';
 import { H256 } from '@polkadot/types/interfaces';
 import { Codec } from '@polkadot/types/types';
@@ -19,7 +20,7 @@ import { IPayload, IExpected, IExpMessage, IFixtures, ITestData, ITestMetadata, 
 
 var metadata: ITestMetadata = {};
 var programs: ITestPrograms = {};
-var base_path: string = "";
+var base_path: string = '';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -96,8 +97,9 @@ function findMessage(api: GearApi, expMessage: IExpMessage, snapshots: DebugData
             let message_payload = {
               kind: 'bytes',
               value: message.payload,
-            }
-            let message_encoded = encodePayload(api, message_payload, false, "");
+            };
+
+            let message_encoded = encodePayload(api, message_payload, false, '');
             if (payload && !payload.eq(message_encoded)) {
               match = false;
             }
@@ -144,12 +146,10 @@ async function resetStorage(api: GearApi, sudoPair: KeyringPair) {
 async function checkLog(api: GearApi, exp: IExpected) {
   const errors = [];
 
-  let mailbox = new GearMailbox(api);
+  const mailbox = new GearMailbox(api);
   // use account id
-  let messagesOpt = await mailbox.read('5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY');
-  if (messagesOpt.isSome) {
-    let messages = messagesOpt.unwrap();
-
+  const messages = await mailbox.read('5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY');
+  if (messages.length > 0) {
     for (let log of exp.log) {
       if ('payload' in log) {
         let found = false;
@@ -164,16 +164,15 @@ async function checkLog(api: GearApi, exp: IExpected) {
             found = true;
             continue;
           }
-
-          for (const [_id, message] of messages) {
-            if (message.dest.toString() != log.destination) {
-                continue;
+          for (const [[_, _id], message] of messages) {
+            if (message['destination'] !== log.destination) {
+              continue;
             }
             let message_payload = {
               kind: 'bytes',
               value: message.payload,
             };
-            let message_encoded = encodePayload(api, message_payload, false, "");
+            let message_encoded = encodePayload(api, message_payload, false, '');
             if (encoded.toHex() === message_encoded.toHex()) {
               found = true;
               return errors;
@@ -529,6 +528,7 @@ async function main() {
   console.log('Total fixtures:', totalFixtures);
 
   // Create the API and wait until ready
+  await waitReady();
   const api = await GearApi.create();
   const rootKeys = await GearKeyring.fromSuri('//Alice', 'Alice default');
 
